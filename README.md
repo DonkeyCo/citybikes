@@ -1,46 +1,150 @@
-# Getting Started with Create React App
+# citybikes
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Migration
 
-## Available Scripts
+1. Upgrade your packages with the following command
+```
+npm i @ui5/webcomponents-react@2.0.0-rc.2 @ui5/webcomponents@latest @ui5/webcomponents-fiori@latest @ui5/webcomponents-base@latest
+```
 
-In the project directory, you can run:
+2. Adjust the imports in App.tsx. Instead of importing
+```js
+import { Table, TableColumn, TableRow, TableCell, Button, Bar, Title } from '@ui5/webcomponents-react';
+```
 
-### `npm start`
+we are removing `TableColumn` and replace it with `TableHeaderRow` and `TableHeaderCell`
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```js
+import { Table, TableHeaderRow, TableRow, TableCell, Button, Bar, Title, TableHeaderCell } from '@ui5/webcomponents-react';
+```
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+3. Remove all incompatible/wrong properties from `Table` and `TableRow`. This includes the following properties...
 
-### `npm test`
+...Table:
+- `growing`
+- `onLoadMore`
+- `growingButtonSubText`
+- `mode`
+- `onSelectionChange`
+- `columns`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+...TableRow:
+- `type`
 
-### `npm run build`
+4. Add the `TableHeaderRow` to the in the `Table`. Use the `headerRow` property for that.
+```tsx
+<Table
+	onRowClick={onRowClick}
+	headerRow={
+		<TableHeaderRow>
+		<TableHeaderCell>Vendor</TableHeaderCell>
+		<TableHeaderCell>City</TableHeaderCell>
+		<TableHeaderCell>Company</TableHeaderCell>
+		<TableHeaderCell>Country</TableHeaderCell>
+		</TableHeaderRow>
+	}>
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+This should be enough to have the application up and running with limited functionality!
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+5. To enable popins, you need to set `overflowMode` to `Popin`. By default, the table will always be in horizontal scroll mode.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```tsx
+<Table
+	onRowClick={onRowClick}
+	overflowMode='Popin'
+```
 
-### `npm run eject`
+The popin behavior changed. Instead of defining `minWidth` as in `minScreenWidth` (the minimum screen width, when a column should pop in), the table now offers a "natural" overflow handling.
+Just set a `minWidth`, `width` or `maxWidth` for your `TableHeaderCell` and the table will determine on resize, which columns still fit into the table.
+You can also manipulate the order by providing an `importance`.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```tsx
+<TableHeaderRow>
+	<TableHeaderCell minWidth="12rem" importance={100}>Vendor</TableHeaderCell>
+	<TableHeaderCell importance={-1} minWidth='400px'>City</TableHeaderCell>
+	<TableHeaderCell minWidth='500px'>Company</TableHeaderCell>
+	<TableHeaderCell minWidth='200px'>Country</TableHeaderCell>
+</TableHeaderRow>
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+5. Add the `interactive` property to the row. This is equivalent to the old `type="Active"` setting.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+```tsx
+<TableRow id={vendor.id} key={vendor.id} interactive>
+```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+6. To add growing, we need to add the `TableGrowing` feature, as we want to "extend" the functionality of our table. Set the `type` to `Button` to enable growing via a button. `growingSubText` can be used for the subtext of the button. Attach the 'loadMore' event to the feature, as it is now a separate entity to the `Table`.
 
-## Learn More
+```tsx
+<Table
+	...
+	features={<>
+		<TableGrowing
+		type='Button'
+		growingSubText={`[${vendors.length} of ${count}]`}
+		onLoadMore={onLoadMore}>
+		</TableGrowing>
+	</>}>
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+7. To add selection capabilities, we need to add the `TableSelection` feature, as it is not part of the "default" table.
+Set the `mode` property to `Multiple` to enable multi selection capabilities.
+The `selectionChange` event is now simply the `change` event, so attach the listener to this event
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```tsx
+<Table
+	...
+	features={<>
+		...
+		<TableSelection
+		mode='Multiple'
+		onChange={onSelectionChange}>
+		</TableSelection>
+	</>}>
+```
+
+Additionally, selection is now key-based instead of index-based. Therefore, we also need to add the `row-key` property to the `TableRow`.
+
+```tsx
+<TableRow id={vendor.id} key={vendor.id} interactive rowKey={vendor.id}>
+```
+
+We also need to slightly change the event listener. The event itself does not return any
+details. It is possible to determine the state of selection directly from the selection
+feature by examining the `selected` property. This property holds the selected keys separated by spaces.
+
+We need to create a reference to access the `TableSelection` feature in the event listener.
+Be aware, that the `selected` property contains `row-key`s, which is why we need to adjust the logic to find the vendor.
+
+```tsx
+const selection = useRef(null);
+```
+
+```tsx
+<TableSelection
+	ref={selection}
+```
+
+```tsx
+function onSelectionChange(event: CustomEvent) {
+	if (!selection.current) {
+		return;
+	}
+
+	const selectionFeature: TableSelectionDomRef = selection.current;
+	const selected = selectionFeature.selected.split(" ");
+	const newMarkers = selected.reduce((acc: MarkerInfo[], rowKey: any) => {
+		const vendor = vendors.find((vendor: Vendor) => vendor.id === rowKey);
+		if (vendor) {
+		acc.push({ id: vendor.id, position: [vendor.location.latitude, vendor.location.longitude], city: vendor.location.city, name: vendor.name });
+		}
+		return acc;
+	}, []);
+	setMarkers(newMarkers);
+
+	if (current !== null && selected.find((row: any) => row.id === current.id)) {
+		setCurrent(null);
+	}
+}
+```

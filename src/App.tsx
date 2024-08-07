@@ -1,8 +1,8 @@
-import { Table, TableColumn, TableRow, TableCell, Button, Bar, Title } from '@ui5/webcomponents-react';
+import { Table, TableHeaderRow, TableRow, TableCell, Button, Bar, Title, TableHeaderCell, TableGrowing, TableSelection, TableSelectionDomRef } from '@ui5/webcomponents-react';
 import './App.css';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import { Label } from '@ui5/webcomponents-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import API from './api/api';
 import { Vendor } from './api/model';
 import { LatLngTuple, Map } from 'leaflet';
@@ -27,6 +27,8 @@ function App({api}: { api: API}) {
   const [current, setCurrent] = useState(null as MarkerInfo | null);
   const [map, setMap] = useState(null as Map | null);
 
+  const selection = useRef(null);
+
   useEffect(() => {
     Promise.all([api.getBikeVendors(threshold), api.getCount()]).then(([data, count]) => {
       setVendors(data);
@@ -48,9 +50,14 @@ function App({api}: { api: API}) {
   }
 
   function onSelectionChange(event: CustomEvent) {
-    const selected = event.detail.selectedRows;
-    const newMarkers = selected.reduce((acc: MarkerInfo[], row: any) => {
-      const vendor = vendors.find((vendor: Vendor) => vendor.id === row.id);
+    if (!selection.current) {
+      return;
+    }
+
+    const selectionFeature: TableSelectionDomRef = selection.current;
+    const selected = selectionFeature.selected.split(" ");
+    const newMarkers = selected.reduce((acc: MarkerInfo[], rowKey: any) => {
+      const vendor = vendors.find((vendor: Vendor) => vendor.id === rowKey);
       if (vendor) {
         acc.push({ id: vendor.id, position: [vendor.location.latitude, vendor.location.longitude], city: vendor.location.city, name: vendor.name });
       }
@@ -96,20 +103,31 @@ function App({api}: { api: API}) {
       ></Bar>
 
       <Table
-        growing='Button'
-        onLoadMore={onLoadMore}
-        growingButtonSubtext={`[${vendors.length} of ${count}]`}
-        mode="MultiSelect"
-        onSelectionChange={onSelectionChange}
         onRowClick={onRowClick}
-        columns={<>
-          <TableColumn style={{width: `12rem`}}><Label>Name</Label></TableColumn>
-          <TableColumn minWidth={600} demandPopin popinText='City'><Label>City</Label></TableColumn>
-          <TableColumn minWidth={600} demandPopin popinText='Company'><Label>Company</Label></TableColumn>
-          <TableColumn minWidth={800} demandPopin popinText='Country'><Label>Country</Label></TableColumn></>}>
+        overflowMode='Popin'
+        headerRow={
+          <TableHeaderRow>
+            <TableHeaderCell minWidth="12rem" importance={100}>Vendor</TableHeaderCell>
+            <TableHeaderCell importance={-1} minWidth='400px'>City</TableHeaderCell>
+            <TableHeaderCell minWidth='500px'>Company</TableHeaderCell>
+            <TableHeaderCell minWidth='200px'>Country</TableHeaderCell>
+          </TableHeaderRow>
+        }
+        features={<>
+          <TableGrowing
+            type='Button'
+            growingSubText={`[${vendors.length} of ${count}]`}
+            onLoadMore={onLoadMore}>
+          </TableGrowing>
+          <TableSelection
+            ref={selection}
+            mode='Multiple'
+            onChange={onSelectionChange}>
+          </TableSelection>
+        </>}>
           {vendors.map((vendor: Vendor) => {
             return (
-              <TableRow id={vendor.id} key={vendor.id} type='Active'>
+              <TableRow id={vendor.id} key={vendor.id} interactive rowKey={vendor.id}>
                 <TableCell><Label>{vendor.name}</Label></TableCell>
                 <TableCell><Label>{vendor.location.city}</Label></TableCell>
                 <TableCell><Label wrappingType='Normal'>{vendor.company.join(", ")}</Label></TableCell>
