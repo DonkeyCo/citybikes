@@ -115,7 +115,7 @@ details. It is possible to determine the state of selection directly from the se
 feature by examining the `selected` property. This property holds the selected keys separated by spaces.
 
 We need to create a reference to access the `TableSelection` feature in the event listener.
-Be aware, that the `selected` property contains `row-key`s, which is why we need to adjust the logic to find the vendor.
+Be aware, that the `selected` property contains `row-key`s, which is why we need to adjust the logic to find the vendor. Therefore, we need to replace instances of `row.id` usages with the appropriate `rowKey` usage.
 
 ```tsx
 const selection = useRef(null);
@@ -124,6 +124,21 @@ const selection = useRef(null);
 ```tsx
 <TableSelection
 	ref={selection}
+```
+
+```tsx
+function onRowClick(event: CustomEvent) {
+	const vendor = vendors.find((vendor: Vendor) => vendor.id === event.detail.row.rowKey);
+	if (vendor) {
+		map?.flyTo([vendor.location.latitude, vendor.location.longitude], 13);
+
+		if (markers.find((marker: any) => marker.id === event.detail.row.rowKey)) {
+		setCurrent(null);
+		} else {
+		setCurrent({ id: vendor.id, position: [vendor.location.latitude, vendor.location.longitude], city: vendor.location.city, name: vendor.name });
+		}
+	}
+}
 ```
 
 ```tsx
@@ -143,7 +158,7 @@ function onSelectionChange(event: CustomEvent) {
 	}, []);
 	setMarkers(newMarkers);
 
-	if (current !== null && selected.find((row: any) => row.id === current.id)) {
+	if (current !== null && selected.find((rowId: any) => rowId === current.id)) {
 		setCurrent(null);
 	}
 }

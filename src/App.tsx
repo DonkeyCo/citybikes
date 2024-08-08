@@ -37,11 +37,11 @@ function App({api}: { api: API}) {
   }, [api]);
 
   function onRowClick(event: CustomEvent) {
-    const vendor = vendors.find((vendor: Vendor) => vendor.id === event.detail.row.id);
+    const vendor = vendors.find((vendor: Vendor) => vendor.id === event.detail.row.rowKey);
     if (vendor) {
       map?.flyTo([vendor.location.latitude, vendor.location.longitude], 13);
-      
-      if (markers.find((marker: any) => marker.id === event.detail.row.id)) {
+
+      if (markers.find((marker: any) => marker.id === event.detail.row.rowKey)) {
         setCurrent(null);
       } else {
         setCurrent({ id: vendor.id, position: [vendor.location.latitude, vendor.location.longitude], city: vendor.location.city, name: vendor.name });
@@ -65,7 +65,7 @@ function App({api}: { api: API}) {
     }, []);
     setMarkers(newMarkers);
 
-    if (current !== null && selected.find((row: any) => row.id === current.id)) {
+    if (current !== null && selected.find((rowId: any) => rowId === current.id)) {
       setCurrent(null);
     }
   }
